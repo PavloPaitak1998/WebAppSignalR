@@ -1,0 +1,131 @@
+﻿@using Newtonsoft.Json;
+@{
+    ViewBag.Title = "Index";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<h2>Index</h2>
+
+<div class="main">
+    <div id="chatBody">
+        <div id="header"></div>
+        <div id="inputForm">
+            <input type="text" id="message" />
+            <input type="button" id="sendmessage" value="Отправить" />
+        </div>
+        <div id="chatroom"></div>
+
+        <div id="chatusers">
+            <p><b>All Users</b></p>
+        </div>
+        <div id="test">
+        </div>
+    </div>
+    <input id="hdId" type="hidden" />
+    <input id="username" type="hidden" />
+    
+    <div id="groupchatusers">
+        <p>Groups</p>
+    </div>
+
+</div>
+
+<script src="~/Scripts/jquery-3.3.1.min.js"></script>
+<script src="~/Scripts/jquery.signalR-2.4.1.min.js"></script>
+<script src="~/signalr/hubs"></script>
+<script>
+    (function () {
+
+        $('#chatBody').hide();
+
+        var chat = $.connection.myHub1;
+
+        chat.client.addMessage = function (name, message) {
+
+            $('#chatroom').append('<p><b>' + htmlEncode(name)
+                + '</b>: ' + htmlEncode(message) + '</p>');
+        };
+
+        chat.client.onConnected = function (id, userName, allUsers) {
+            $('#chatBody').show();
+
+            $('#hdId').val(id);
+            $('#username').val(userName);
+            $('#header').html('<h3>Welcome, ' + userName + '</h3>');
+
+
+            for (i = 0; i < allUsers.length; i++) {
+
+                AddUser(allUsers[i].ConnectionId, allUsers[i].Name);
+            }
+        }
+
+        chat.client.addGroupMessage = function (name, message, groupName) {
+
+            $('#'+groupName+'ChatGroupRoom').append('<p><b>' + htmlEncode(name)
+                + '</b>: ' + htmlEncode(message) + '</p>');
+        };
+
+        chat.client.onGroupCreated = function (groupName) {
+            $('#chatGroupBody').show();
+            console.log('did');
+            $("#groupchatusers").append('<p id="' + groupName + '"><b> Group: ' + groupName + '</b></p>');
+
+            $("#groupchatusers").append('<div id="'+groupName+'ChatGroupBody"><div id="'+groupName+'InputGroupForm"><input type="text" id="'+groupName+'GroupMessage" /><input type="button" id="'+groupName+'SendGroupMessage" value="Send" /><div id="'+groupName+'ChatGroupRoom"></div></div></div>');
+
+            $('#'+groupName+'SendGroupMessage').click(function () {
+
+                chat.server.sendGroupMessage($('#username').val(), $('#'+groupName+'GroupMessage').val(),groupName);
+                $('#'+groupName+'GroupMessage').val('');
+            });
+
+        }
+
+        chat.client.onNewUserConnected = function (id, name) {
+
+            AddUser(id, name);
+        }
+
+        chat.client.onUserDisconnected = function (id, userName) {
+
+            $('#' + id).remove();
+        }
+
+        $.connection.hub.start().done(function () {
+
+            $('#sendmessage').click(function () {
+
+                chat.server.send($('#username').val(), $('#message').val());
+                $('#message').val('');
+            });
+
+            var res =  '@User.Identity.Name';
+
+            chat.server.connect(res);
+        });
+
+        function AddUser(id, name) {
+
+            var userId = $('#hdId').val();
+
+            if (userId != id) {
+
+                $("#chatusers").append('<p id="' + id + '"><b>' + name + '</b></p>');
+
+                $('#'+ id).click(function (event) {
+                    var groupName = prompt('Please enter group name.');
+                    console.log(id);
+                    chat.server.createGroup(id, groupName);
+                });
+            }
+        }
+
+    })();
+
+    function htmlEncode(value) {
+        var encodedValue = $('<div />').text(value).html();
+        return encodedValue;
+    }
+
+</script>
+
